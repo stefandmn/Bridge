@@ -1,0 +1,10 @@
+Origin: AMSD
+Package: clue-bridge
+Version: 1.0.7
+Priority: optional
+Section: main
+Installed-Size: 0000
+Architecture: armhf
+Depends: clue-setup (>=1.0.1), clue-libcec (>=1.0.10)
+Maintainer: damian.stefan@gmail.com
+Description: Clue Bridge package has been developed to allow access to and from a set of accessories from and to HomeKit through HomeBridge interface.

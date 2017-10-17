@@ -1,0 +1,15 @@
+{
+	"name": "homebridge-clue",
+	"version": "1.0.0",
+	"description": "Clue plugin for HomeBridge (API 2.0) to publish through HomeKit Clue Media Experience accessories",
+	"main": "index.js",
+	"engines":
+	{
+		"homebridge": ">=0.2.0",
+		"node": ">=4.2.0"
+	},
+	"keywords": [
+		"homebridge-plugin",
+		"clue"
+	]
+}

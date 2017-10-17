@@ -1,0 +1,75 @@
+#! /bin/sh
+
+### BEGIN INIT INFO
+# Provides:          homebridge
+# Required-Start:    $network $remote_fs $syslog
+# Required-Stop:     $remote_fs $syslog
+# Default-Start:     2 3 4 5
+# Default-Stop:      0 1 6
+# Short-Description: starts instance of Clue HomeBridge
+### END INIT INFO
+
+############### EDIT ME ##################
+
+NAME=bridge
+DESC="Clue Bridge"
+PID_FILE=/var/run/$NAME.pid
+LOG_FILE=/var/log/$NAME.log
+DAEMON=/usr/bin/node
+OPTIONS="/opt/clue/share/bridge/bridge.js --$1 -D"
+
+############### END EDIT ME ##################
+
+test -x $DAEMON || exit 10
+
+. /lib/lsb/init-functions
+
+config ()
+{
+	if [ ! -d /root/.homebridge ] || [ ! -h /root/.homebridge/config.json ]; then
+		mkdir -p /opt/clue/etc
+		mkdir -p /root/.homebridge
+		/opt/clue/bin/bridge --config
+		ln -fs /opt/clue/etc/bridge.json /root/.homebridge/config.json
+	fi
+
+	if [ ! -h /usr/lib/node_modules/homebridge-clue ]; then
+		ln -fs /opt/clue/share/bridge /usr/lib/node_modules/homebridge-clue
+	fi
+}
+
+case "$1" in
+	start)
+		config
+		log_daemon_msg "Starting $DESC" "$NAME"
+		start-stop-daemon --start --background --pidfile $PID_FILE --chuid root --make-pidfile \
+			--exec /bin/bash -- -c "exec $DAEMON $OPTIONS > $LOG_FILE 2>&1"
+		log_end_msg $?
+		;;
+	stop)
+		log_daemon_msg "Stopping $DESC" "$NAME"
+		start-stop-daemon --stop --pidfile $PID_FILE --startas $DAEMON -- $OPTIONS
+		log_end_msg $?
+		rm -f $PID_FILE
+		;;
+	restart)
+		$0 stop && sleep 2 && $0 start
+		;;
+	status)
+		status_of_proc $DAEMON "$DESC"
+		;;
+	config)
+		config
+		;;
+	reconfig)
+		rm -rf /root/.homebridge
+		config
+		;;
+	showpin|display)
+		/opt/clue/bin/bridge --display
+		;;
+	*)
+		echo "Usage: $0 {start|stop|status|restart|config|reconfig|display}"
+		exit 1
+		;;
+esac

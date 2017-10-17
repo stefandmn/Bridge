@@ -1,0 +1,19 @@
+#!/bin/bash
+
+if [ "$1" == "configure" ]; then
+	# Link Clue Bridge packages by HomeBridge module
+	if [ ! -h /usr/lib/node_modules/homebridge-clue ]; then
+		ln -fs /opt/clue/share/bridge /usr/lib/node_modules/homebridge-clue
+	fi
+
+	# Set scripts permissions and Register service
+	chmod +x /opt/clue/bin/bridge
+	chmod +x /etc/init.d/clue-bridge
+	/usr/sbin/update-rc.d clue-bridge defaults
+	/bin/systemctl daemon-reload
+
+	# Restart the service (if is the case)
+	if [ $(ps -ef | grep "bridge" | grep -v "grep" | wc -l) -ne 0 ]; then
+		service clue-bridge restart
+	fi
+fi
