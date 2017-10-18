@@ -58,14 +58,7 @@ case "$1" in
 	status)
 		status_of_proc $DAEMON "$DESC"
 		;;
-	config)
-		config
-		;;
-	reconfig)
-		rm -rf /root/.homebridge
-		config
-		;;
-	showpin|display)
+	showpin)
 		/opt/clue/bin/bridge --display
 		;;
 	*)
