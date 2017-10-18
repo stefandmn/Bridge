@@ -8,8 +8,8 @@
 # $Id: build-prep.sh 966 2017-02-13 22:54:04Z stefan $
 ###############################################################################
 
-OLDVER=$(getCurrentVersion)
-NEWVER=$(getNextVersion)
-sed -i "s/$OLDVER/$NEWVER/g" ${SYSDIR}/package.json
+OLDVER=$(getPrevVersion "${MODPATH}/deb/control")
+NEWVER=$(getCurrentVersion "${MODPATH}/deb/control")
+sed -i "s/$OLDVER/$NEWVER/g" ${SRCDIR}/package.json
 mkdir -p ${BUILDPATH}/${MOD}/opt/clue/share/bridge
 cp -rf ${SRCDIR}/* ${BUILDPATH}/${MOD}/opt/clue/share/bridge/
