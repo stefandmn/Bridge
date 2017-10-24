@@ -1,5 +1,6 @@
 "use strict";
 
+var pjson = require('./package.json');
 var process = require("child_process");
 var Accessory, Service, Characteristic, UUIDGen;
 
@@ -17,7 +18,7 @@ function CluePlatform(log, config, api)
 {
 	this.log = log;
 	this.config = config || { "platform": "clue" };
-	this.devices = this.config.devices || [];
+	this.devices = this.config.devices || {};
 
 	this.serialnumber = this.runCmd("/opt/clue/bin/setup -g raspberry -s");
 	this.modelnumber = this.runCmd("/opt/clue/bin/setup -g raspberry -m");
@@ -25,10 +26,10 @@ function CluePlatform(log, config, api)
 	this.accessories = {};
 	this.polling = {};
 
-	this.setMCPiConfig();
-	this.setPiCamConfig();
-	this.setCecConfig();
-	this.setRPiSensorConfig();
+	this.loadMCPiConfig();
+	this.loadPiCamConfig();
+	this.loadCecConfig();
+	this.loadRPiSensorConfig();
 
 	if (api)
 	{
@@ -40,127 +41,138 @@ function CluePlatform(log, config, api)
 /**
  * Add MCPi (software) accessory
  */
-CluePlatform.prototype.setMCPiConfig = function ()
+CluePlatform.prototype.loadMCPiConfig = function ()
 {
-	if(this.config.mcpi == true)
+	if(this.config.mcpi == true && this.runCmd('/opt/clue/bin/setup -g service -b mcpi') != "")
 	{
-		var name = "MCPi";
-		var service = this.runCmd('/opt/clue/bin/setup -g service -b mcpi');
-
-		if (service != "")
+		this.devices.mcpi =
 		{
-			this.devices[this.devices.length] =
-			{
-				"name": name,
-				"type": "Switch",
-				"on_cmd": "/opt/clue/bin/setup -s service -on mcpi",
-				"off_cmd": "/opt/clue/bin/setup -s service -off mcpi",
-				"state_cmd": "/opt/clue/bin/setup -g service -e mcpi",
-				"state_on": "running",
-				"workflow": ["sleep 10", "/opt/clue/bin/setup -s mcpi -p party", "sleep 10", "/opt/clue/bin/setup -s mcpi -s home"],
-				"polling": true,
-				"interval": 60,
-				"manufacturer": "AMSD",
-				"model": "hap-clue-" + name.toLowerCase(),
-				"serial": name.toUpperCase() + this.serialnumber.substring(name.length)
-			};
+			"name": "MCPi",
+			"type": "Switch",
+			"on_cmd": "/opt/clue/bin/setup -s service -on mcpi",
+			"off_cmd": "/opt/clue/bin/setup -s service -off mcpi",
+			"state_cmd": "/opt/clue/bin/setup -g service -e mcpi",
+			"state_on": "running",
+			"state_flow": ["sleep 10", "/opt/clue/bin/setup -s mcpi -p party", "sleep 10", "/opt/clue/bin/setup -s mcpi -s home"],
+			"polling": true,
+			"interval": 60,
+			"manufacturer": "AMSD",
+			"model": "hap-clue-mcpi",
+			"serial": "MCPI" + this.serialnumber.substring(4)
+		};
 
-			if(this.config.mcpi_workflow) this.devices[this.devices.length - 1].workflow = this.config.mcpi_workflow;
-		}
+		if(this.config.mcpi_state_flow) this.devices.mcpi.state_flow = this.config.mcpi_state_flow;
 	}
 };
 
 /**
  * Set <code>PiCam</code> accessory configuration
  */
-CluePlatform.prototype.setPiCamConfig = function ()
+CluePlatform.prototype.loadPiCamConfig = function ()
 {
-	if (this.config.picam == true)
+	if (this.config.picam == true && this.runCmd('/opt/clue/bin/setup -g service -b picam') != "")
 	{
-		var name = "PiCam";
-		var service = this.runCmd('/opt/clue/bin/setup -g service -b picam');
-
-		if (service != "")
+		this.devices.picam =
 		{
-			this.devices[this.devices.length] =
+			"name": "PiCam",
+			"type": "Switch",
+			"on_cmd": "/opt/clue/bin/setup -s service -on picam",
+			"off_cmd": "/opt/clue/bin/setup -s service -off picam",
+			"state_cmd": "/opt/clue/bin/setup -g service -e picam",
+			"state_on": "running",
+			"polling": true,
+			"interval": 60,
+			"manufacturer": "AMSD",
+			"model": "hap-clue-picam",
+			"serial": "PICAM" + this.serialnumber.substring(5)
+		};
+
+		if(this.config.picam_state_flow) this.devices.picam.state_flow = this.config.picam_state_flow;
+
+		var cameras = this.runCmd('/opt/clue/bin/picam -s list').split(" ");
+
+		for (var i in cameras)
+		{
+			var code = ("cam" + cameras[i]).toLowerCase();
+
+			this.devices[code] =
 			{
-				"name": name,
+				"name": "Camera " + cameras[i],
 				"type": "Switch",
-				"on_cmd": "/opt/clue/bin/setup -s service -on picam",
-				"off_cmd": "/opt/clue/bin/setup -s service -off picam",
-				"state_cmd": "/opt/clue/bin/setup -g service -e picam",
-				"state_on": "running",
+				"on_cmd": "/opt/clue/bin/picam -c 'start service on #" + cameras[i] + "'",
+				"off_cmd": "/opt/clue/bin/picam -c 'stop service on #" + cameras[i] + "'",
+				"state_cmd": "/opt/clue/bin/picam -s CameraStatus@" + cameras[i] ,
+				"state_on": "on",
+				"state_off": "off",
+				"dependency": "picam",
 				"polling": true,
 				"interval": 60,
 				"manufacturer": "AMSD",
-				"model": "hap-clue-" + name.toLowerCase(),
-				"serial": name.toUpperCase() + this.serialnumber.substring(name.length)
+				"model": "hap-clue-picam",
+				"serial": "CAM" + cameras[i] + this.serialnumber.substring(4)
 			};
-
-			if(this.config.picam_workflow) this.devices[this.devices.length - 1].workflow = this.config.picam_workflow;
-
-			var cameras = this.runCmd('/opt/clue/bin/picam -s list').split(" ");
-
-			for (var i in cameras)
-			{
-				var identifier = "Cam" + cameras[i];
-
-				this.devices[this.devices.length] =
-				{
-					"name": "Cam" + cameras[i],
-					"link": name,
-					"type": "Switch",
-					"on_cmd": "/opt/clue/bin/picam -c 'start service on #" + cameras[i] + "'",
-					"off_cmd": "/opt/clue/bin/picam -c 'stop service on #" + cameras[i] + "'",
-					"state_cmd": "/opt/clue/bin/picam -s CameraStatus@" + cameras[i] ,
-					"state_on": "on",
-					"state_off": "off",
-					"polling": true,
-					"interval": 60,
-					"manufacturer": "AMSD",
-					"model": "hap-clue-cam",
-					"serial": identifier.toUpperCase() + this.serialnumber.substring(identifier.length)
-				};
-			}
 		}
 	}
 };
 
 /**
- * Set <code>Cec</code> accessories configuration
+ * Set <code>CEC</code> accessories configuration
  */
-CluePlatform.prototype.setCecConfig = function ()
+CluePlatform.prototype.loadCecConfig = function ()
 {
 	if (this.config.cec == true)
 	{
-		var devices = JSON.parse(this.runCmd('/opt/clue/bin/setup -g cec -s json')).devices;
+		var hdmi = JSON.parse(this.runCmd('/opt/clue/bin/setup -g cec -s json')).devices;
 
-		for (var i in devices)
+		for (var i in hdmi)
 		{
-			var id = devices[i].id;
-			var ver = devices[i].properties.version;
-			var name = devices[i].properties.name;
-			var type = devices[i].properties.type;
+			var id = hdmi[i].id;
+			var version = hdmi[i].properties.version;
+			var name = hdmi[i].properties.name;
+			var type = hdmi[i].properties.type;
+			var code1 = name.trim().replace(/\s/g, '').toLowerCase();
+			var code2 = type.trim().replace(/\s/g, '').toLowerCase();
+			var code = code1 + "_" + code2;
 
-			if(this.indexOfDeviceConfig(name) < 0 && type.toLowerCase() != "audio" && name.toLowerCase() != "clue" && ver != "unknown" && ver > "1.3")
+			if(code1 != "clue" && version != "unknown" && version > "1.3" && this.getDeviceConfig(code) == null)
 			{
-				var identifier = "CEC" + id;
-
-				this.devices[this.devices.length] =
+				if(code2.indexOf("audio") < 0)
 				{
-					"name": name,
-					"type": "Switch",
-					"on_cmd": "/opt/clue/bin/setup -s cec -on " + id ,
-					"off_cmd": "/opt/clue/bin/setup -s cec -off " + id,
-					"state_cmd": "/opt/clue/bin/setup -g cec -i power " + id,
-					"state_on": "on",
-					"state_off": "standby",
-					"polling": true,
-					"interval": (60 + i*5),
-					"manufacturer": "AMSD",
-					"model": "hap-clue-cec",
-					"serial": identifier.toUpperCase() + this.serialnumber.substring(identifier.length)
-				};
+					this.devices[code] =
+					{
+						"name": name,
+						"type": "Switch",
+						"on_cmd": "/opt/clue/bin/setup -s cec -on " + id ,
+						"off_cmd": "/opt/clue/bin/setup -s cec -off " + id,
+						"state_cmd": "/opt/clue/bin/setup -g cec -i power " + id,
+						"state_on": "on",
+						"state_off": "standby",
+						"polling": true,
+						"interval": 60,
+						"manufacturer": "AMSD",
+						"model": "hap-clue-cec",
+						"serial": ("CEC" + id) + this.serialnumber.substring(("CEC" + id).length)
+					};
+				}
+				else if( 1 == 2) //TODO - this type of device is not yet supported
+				{
+					this.devices[code] =
+					{
+						"name": name,
+						"type": "Speaker",
+						"up_cmd": "/opt/clue/bin/setup -s cec -v up",
+						"down_cmd": "/opt/clue/bin/setup -s cec -v down",
+						"mute_cmd": "/opt/clue/bin/setup -s cec -m",
+						"state_cmd": "/opt/clue/bin/setup -g cec -v",
+						"min_value": -35,
+						"max_value": 120,
+						"polling": true,
+						"interval": 60,
+						"manufacturer": "AMSD",
+						"model": "hap-clue-cec",
+						"serial": ("CEC" + id) + this.serialnumber.substring(("CEC" + id).length)
+					};
+				}
 			}
 		}
 	}
@@ -169,21 +181,19 @@ CluePlatform.prototype.setCecConfig = function ()
 /**
  * Set <code>RPiSensor</code> accessory configuration
  */
-CluePlatform.prototype.setRPiSensorConfig = function ()
+CluePlatform.prototype.loadRPiSensorConfig = function ()
 {
 	if (this.config.rpi == true)
 	{
-		var name = "RPiSensor";
-		this.devices[this.devices.length] =
+		this.devices.rpisensor =
 		{
-			"name": name,
+			"name": "RPiSensor",
 			"type": "TemperatureSensor",
 			"state_cmd": "/opt/clue/bin/setup -g raspberry -t",
-			"state_sync": true,
-			"polling": true,
-			"interval": 60,
 			"min_value": -35,
 			"max_value": 120,
+			"polling": true,
+			"interval": 60,
 			"manufacturer": "element14",
 			"serial": this.serialnumber,
 			"model": this.modelnumber
@@ -192,27 +202,28 @@ CluePlatform.prototype.setRPiSensorConfig = function ()
 };
 
 /**
- * Returns the index of the accessory device from the device list.
+ * Returns the accessory device configuration from the device configuration list.
  *
- * @param name name of the accessory to find
- * @returns {number} index number from the device configuration list
+ * @param code name of the accessory to find
+ * @returns JSON configuration structure for found device
  */
-CluePlatform.prototype.indexOfDeviceConfig = function (name)
+CluePlatform.prototype.getDeviceConfig = function (code)
 {
-	if( name != null)
-	{
-		var index = 0;
-		var found = false;
+	var device = null;
 
-		while (index < this.devices.length && !found)
+	if( code != null)
+	{
+		for(var devcode in this.devices)
 		{
-			found = (name == this.devices[index].name);
-			index++;
+			if(devcode == code)
+			{
+				device = this.devices[code];
+				break;
+			}
 		}
 	}
 
-	if(found) return index - 1;
-		else return -1;
+	return device;
 };
 
 /**
@@ -244,8 +255,8 @@ CluePlatform.prototype.runCmd = function (cmd)
  */
 CluePlatform.prototype.configureAccessory = function (accessory)
 {
-	this.setService(accessory, accessory.context);
-	this.accessories[accessory.context.name] = accessory;
+	this.setService(accessory);
+	this.accessories[accessory.context.code] = accessory;
 };
 
 /**
@@ -254,15 +265,15 @@ CluePlatform.prototype.configureAccessory = function (accessory)
 CluePlatform.prototype.didFinishLaunching = function ()
 {
 	// Add or update accessories defined in config.json
-	for (var i in this.devices)
+	for (var code in this.devices)
 	{
-		this.addAccessory(this.devices[i]);
+		this.addAccessory(code);
 	}
 
 	// Remove extra accessories in cache
-	for (var name in this.accessories)
+	for (var index in this.accessories)
 	{
-		var accessory = this.accessories[name];
+		var accessory = this.accessories[index];
 
 		if (!accessory.reachable)
 		{
@@ -271,107 +282,137 @@ CluePlatform.prototype.didFinishLaunching = function ()
 	}
 };
 
-CluePlatform.prototype.correlate = function (name, state)
+/**
+ * Adapt the accessory configuration to include missing attributes or to correct them
+ * @param devcode accessory device code
+ * @returns configuration structure
+ */
+CluePlatform.prototype.getImprovedDeviceConfig = function (devcode)
 {
-	if(!name)
+	var device = this.devices[devcode];
+
+	if(device != null)
 	{
-		this.log.warn("Services correlation can not run because no accessory/service name is not specified");
-		return;
+		// adapt configuration and validate specific accessory attributes
+		device.code = devcode;
+		device.polling = device.polling === true;
+		device.interval = parseInt(device.interval, 10) || 1;
+		if (!device.type) device.type = "Switch";
+		if (!device.title) device.title = devcode[0].toUpperCase() + devcode.slice(1);
+		if (device.manufacturer) device.manufacturer = device.manufacturer.toString();
+		if (device.model) device.model = device.model.toString();
+		if (device.serial) device.serial = device.serial.toString();
+		if (device.min_value) device.min_value = parseInt(device.min_value, 10) || 0;
+			else device.min_value = 0;
+		if (device.max_value) device.max_value = parseInt(device.max_value, 10) || 100;
+			else device.max_value = 100;
+		if (!device.dependency) device.dependency = null;
 	}
 
-	for (var index in this.accessories)
-	{
-		var accessory = this.accessories[index];
-
-		if (accessory.context.name != name)
-		{
-			if (accessory.context.link && accessory.context.link == name)
-			{
-				if (state) this.addService(accessory);
-					else this.removeService(accessory);
-			}
-		}
-	}
+	return device;
 };
 
 /**
- * Method to add and update HomeKit accessories.
+ * Prepare the accessory context with the device configuration
  *
- * @param data configuration data structure
+ * @param accessory accessory device instance
+ * @param data accessory device configuration structure
  */
-CluePlatform.prototype.addAccessory = function (data)
+CluePlatform.prototype.setDeviceContext = function (accessory, data)
 {
-	if (!data.type) data.type = "Switch";
-	this.log.info("Initializing %s accessory as %s device type..", data.name, data.type);
-
-	// retrieve accessory from cache
-	var accessory = this.accessories[data.name];
-
-	// check if the accessory already exist
-	if (!accessory)
-	{
-		// setup new accessory
-		var uuid = UUIDGen.generate(data.name);
-		accessory = new Accessory(data.name, uuid, 8);
-
-		// setup new accessory service type
-		var service = Service[data.type];
-
-		// if the accessory service type is not recognized, stop the process
-		if (!service)
-		{
-			this.log.warn("Unknown accessory service type: %s", data.type);
-			return;
-		}
-
-		// add the service to the accessory
-		accessory.addService(service, data.name);
-
-		// new accessory is always reachable
-		accessory.reachable = true;
-
-		// setup listeners for different accessory events
-		this.setService(accessory, data);
-
-		// register new accessory in HomeKit
-		this.api.registerPlatformAccessories("homebridge-clue", "clue", [accessory]);
-
-		// store accessory in cache
-		this.accessories[data.name] = accessory;
-	}
-
-	// confirm variable type
-	data.polling = data.polling === true;
-	data.interval = parseInt(data.interval, 10) || 1;
-	if (data.manufacturer) data.manufacturer = data.manufacturer.toString();
-	if (data.model) data.model = data.model.toString();
-	if (data.serial) data.serial = data.serial.toString();
-	if (data.min_value) data.min_value = parseInt(data.min_value, 10) || 0;
-	if (data.max_value) data.max_value = parseInt(data.max_value, 10) || 100;
-
-	// store and initialize variables into context
+	// store and initialize variables into accessory context
 	var cache = accessory.context;
+
 	cache.name = data.name;
+	cache.code = data.code;
 	cache.type = data.type;
-	if (data.link) cache.link = data.link;
+	cache.state = null;
+	cache.model = data.model;
+	cache.serial = data.serial;
+	cache.manufacturer = data.manufacturer;
+	cache.polling = data.polling;
+	cache.interval = data.interval;
 	if (data.on_cmd) cache.on_cmd = data.on_cmd;
 	if (data.off_cmd) cache.off_cmd = data.off_cmd;
 	if (data.state_cmd) cache.state_cmd = data.state_cmd;
 	if (data.state_on) cache.state_on = data.state_on;
 	if (data.state_off) cache.state_off = data.state_off;
 	if (data.state_eval) cache.state_eval = data.state_eval;
-	if (data.state_sync) cache.state_sync = data.state_sync;
-	if (data.workflow) cache.workflow = data.workflow;
-	cache.polling = data.polling;
-	cache.interval = data.interval;
-	cache.manufacturer = data.manufacturer;
-	cache.model = data.model;
-	cache.serial = data.serial;
+	if (data.state_flow) cache.state_flow = data.state_flow;
+	if (data.dependency) cache.dependency = data.dependency;
 	if (data.min_value) cache.min_value = data.min_value;
 	if (data.max_value) cache.max_value = data.max_value;
+};
 
-	//initiative state
-	if (cache.state === undefined) cache.state = this.getDirectState(data);
+/**
+ * Method to add and update HomeKit accessories.
+ *
+ * @param devcode configuration data structure
+ */
+CluePlatform.prototype.addAccessory = function (devcode)
+{
+	var data = null;
+
+	if(devcode == null)
+	{
+		this.log.warn("No device name specified for accessory initialization process..");
+		return;
+	}
+	else
+	{
+		data = this.getImprovedDeviceConfig(devcode);
+		this.log.info("Initializing [%s] accessory..", data.name);
+	}
+
+	var accessory = this.accessories[devcode];
+	var registration = false;
+
+	// check if the accessory already exist
+	if (!accessory)
+	{
+		// setup new accessory
+		accessory = new Accessory(data.name, UUIDGen.generate(devcode), 8);
+		registration = true;
+	}
+
+	// store and initialize configuration into accessory context
+	this.setDeviceContext(accessory, data);
+
+	// validate specific services attributes
+	var service = accessory.getService(data.name);
+
+		if(service == null)
+		{
+			service = Service[data.type];
+
+			// if the accessory service type is not recognized, stop the process
+			if (!service)
+			{
+				this.log.warn("Unknown service type for [%s] accessory service: %s", data.name, data.type);
+				return;
+			}
+
+			// add the service to the accessory
+			accessory.addService(service, data.name);
+
+			// setup listeners for different accessory events
+			this.setService(accessory);
+
+		//initiative state
+		accessory.context.state = this.getDirectStateValue(data);
+	}
+
+	if(registration)
+	{
+		// new accessory is always reachable
+		accessory.reachable = true;
+
+		// register new accessory in HomeKit
+		this.api.registerPlatformAccessories("homebridge-clue", "clue", [accessory]);
+
+		// store accessory in cache
+		this.accessories[devcode] = accessory;
+	}
 
 	// retrieve initial state
 	this.getInitState(accessory);
@@ -379,15 +420,7 @@ CluePlatform.prototype.addAccessory = function (data)
 	// configure state polling
 	if (data.polling && data.state_cmd)
 	{
-		this.statePolling(data.name);
-	}
-
-	// if the linked/parent service exists run correlation process
-	if (data.link)
-	{
-		var parent = this.accessories[data.link];
-
-		if(parent) this.correlate(parent.context.name, parent.context.state);
+		this.statePolling(devcode);
 	}
 };
 
@@ -400,136 +433,15 @@ CluePlatform.prototype.removeAccessory = function (accessory)
 {
 	if (accessory)
 	{
-		var name = accessory.context.name;
+		var code = accessory.context.code;
 
-		clearTimeout(this.polling[name]);
-		delete this.polling[name];
+		clearTimeout(this.polling[code]);
+		delete this.polling[code];
 
 		this.api.unregisterPlatformAccessories("homebridge-clue", "clue", [accessory]);
-		delete this.accessories[name];
+		delete this.accessories[code];
 
-		this.log.info("%s accessory has been removed from HomeBridge", name);
-	}
-};
-
-/**
- * Method to run accessory workflow after when is created and when is becoming on.
- *
- * @param name accessory name
- */
-CluePlatform.prototype.execWorkflow = function (name)
-{
-	if(!name)
-	{
-		this.log.warn("Workflow can not be started because accessory/service name is not specified");
-		return;
-	}
-
-	var self = this;
-	var accessory = this.accessories[name];
-
-	if(accessory && accessory.context.workflow && accessory.context.state)
-	{
-		setTimeout(function()
-		{
-			for (var index in accessory.context.workflow)
-			{
-				try
-				{
-					self.runCmd(accessory.context.workflow[index]);
-				}
-				catch(err)
-				{
-					self.log.error("Error running operation command for %s accessory service: %s", accessory.context.name, err.message);
-				}
-			}
-		}, 1000);
-	}
-};
-
-/**
- * Method to add a service to an existing accessories.
- *
- * @param accessory accessory instance
- */
-CluePlatform.prototype.addService = function (accessory)
-{
-	if (accessory)
-	{
-		var data = accessory.context;
-		var service = accessory.getService(data.name);
-
-		// check if the service already exists
-		if(!service)
-		{
-			// create a new service type specified through the configuration
-			service = Service[data.type];
-
-			// if the accessory service type is not recognized, stop the process
-			if (!service)
-			{
-				this.log.warn("Unknown accessory service type: %s", data.type);
-				return;
-			}
-
-			// add the service to the accessory
-			accessory.addService(service, data.name);
-
-			// the accessory should be reachable
-			accessory.reachable = true;
-
-			// setup listeners for different accessory events
-			this.setService(accessory, data);
-
-			//get current state
-			data.state = this.getDirectState(data);
-
-			// retrieve initial state
-			this.getInitState(accessory);
-
-			// configure state polling
-			if (data.polling && data.state_cmd)
-			{
-				this.statePolling(data.name);
-			}
-
-			this.log.info("%s accessory service has been created into accessory instance", data.name);
-
-			// check workflow have to be executed
-			this.execWorkflow(data.name);
-
-			// ask HomeKit for update
-			accessory.updateReachability(true);
-			this.api.updatePlatformAccessories([accessory]);
-		}
-	}
-};
-
-/**
- * Method to remove services attached to an accessory.
- *
- * @param accessory accessory instance
- */
-CluePlatform.prototype.removeService = function (accessory)
-{
-	if (accessory)
-	{
-		var name = accessory.context.name;
-		var service = accessory.getService(Service[accessory.context.type]);
-
-		if(service)
-		{
-			clearTimeout(this.polling[name]);
-			delete this.polling[name];
-
-			accessory.removeService(service);
-
-			this.log.info("%s accessory service has been removed from accessory instance", name);
-
-			// ask HomeKit for update
-			accessory.updateReachability(false);
-			this.api.updatePlatformAccessories([accessory]);
-		}
+		this.log.info("[%s] accessory has been removed from HomeBridge", code);
 	}
 };
 
@@ -542,66 +454,70 @@ CluePlatform.prototype.getTextState = function (state)
  * Method to setup listeners for different events.
  *
  * @param accessory accessory instance
- * @param data configuration data structure
  */
-CluePlatform.prototype.setService = function (accessory, data)
+CluePlatform.prototype.setService = function (accessory)
 {
-	var service = accessory.getService(Service[data.type]);
+	var context = accessory.context;
+	var service = accessory.getService(Service[context.type]);
 
 	if (!service)
 	{
-		this.log.warn("%s service not found as a %s type to define service listeners..", data.name, data.type);
+		this.log.warn("[%s] not found to define service listeners..", context.name);
+		return;
 	}
-	else
+
+	switch (context.type)
 	{
-		switch (data.type)
-		{
-			case "Switch":
-				service.getCharacteristic(Characteristic.On)
-					.on('get', this.getControlState.bind(this, accessory.context))
-					.on('set', this.setCallbackState.bind(this, accessory.context));
-				break;
-			case "Outlet":
-				service.getCharacteristic(Characteristic.On)
-					.on('get', this.getControlState.bind(this, accessory.context))
-					.on('set', this.setCallbackState.bind(this, accessory.context));
-				break;
-			case "Lightbulb":
-				service.getCharacteristic(Characteristic.On)
-					.on('get', this.getControlState.bind(this, accessory.context))
-					.on('set', this.setCallbackState.bind(this, accessory.context));
-				break;
-			case "Door":
-				service.getCharacteristic(Characteristic.LockCurrentState)
-					.on('get', this.getControlState.bind(this, accessory.context))
-					.on('set', this.setCallbackState.bind(this, accessory.context));
-				service.getCharacteristic(Characteristic.LockTargetState)
-					.on('get', this.getControlState.bind(this, accessory.context))
-					.on('set', this.setCallbackState.bind(this, accessory.context));
-				break;
-			case "LockMechanism":
-				service.getCharacteristic(Characteristic.CurrentDoorState)
-					.on('get', this.getControlState.bind(this, accessory.context))
-					.on('set', this.setCallbackState.bind(this, accessory.context));
-				service.getCharacteristic(Characteristic.TargetDoorState)
-					.on('get', this.getControlState.bind(this, accessory.context))
-					.on('set', this.setCallbackState.bind(this, accessory.context));
-				break;
-			case "WindowCovering":
-				service.getCharacteristic(Characteristic.CurrentPosition)
-					.on('get', this.getControlState.bind(this, accessory.context))
-					.on('set', this.setCallbackState.bind(this, accessory.context));
-				service.getCharacteristic(Characteristic.TargetPosition)
-					.on('get', this.getControlState.bind(this, accessory.context))
-					.on('set', this.setCallbackState.bind(this, accessory.context));
-				break;
-			case "TemperatureSensor":
-				service.getCharacteristic(Characteristic.CurrentTemperature)
-					.on('get', this.getControlValue.bind(this, accessory.context));
-				service.getCharacteristic(Characteristic.CurrentTemperature)
-					.setProps({minValue:data.min_value, maxValue:data.max_value});
-				break;
-		}
+		case "Switch":
+			service.getCharacteristic(Characteristic.On)
+				.on('get', this.getCallbackStateValue.bind(this, accessory.context))
+				.on('set', this.setCallbackStateValue.bind(this, accessory.context));
+			break;
+		case "Outlet":
+			service.getCharacteristic(Characteristic.On)
+				.on('get', this.getCallbackStateValue.bind(this, accessory.context))
+				.on('set', this.setCallbackStateValue.bind(this, accessory.context));
+			break;
+		case "Lightbulb":
+			service.getCharacteristic(Characteristic.On)
+				.on('get', this.getCallbackStateValue.bind(this, accessory.context))
+				.on('set', this.setCallbackStateValue.bind(this, accessory.context));
+			break;
+		case "Door":
+			service.getCharacteristic(Characteristic.LockCurrentState)
+				.on('get', this.getCallbackStateValue.bind(this, accessory.context))
+				.on('set', this.setCallbackStateValue.bind(this, accessory.context));
+			service.getCharacteristic(Characteristic.LockTargetState)
+				.on('get', this.getCallbackStateValue.bind(this, accessory.context))
+				.on('set', this.setCallbackStateValue.bind(this, accessory.context));
+			break;
+		case "LockMechanism":
+			service.getCharacteristic(Characteristic.CurrentDoorState)
+				.on('get', this.getCallbackStateValue.bind(this, accessory.context))
+				.on('set', this.setCallbackStateValue.bind(this, accessory.context));
+			service.getCharacteristic(Characteristic.TargetDoorState)
+				.on('get', this.getCallbackStateValue.bind(this, accessory.context))
+				.on('set', this.setCallbackStateValue.bind(this, accessory.context));
+			break;
+		case "WindowCovering":
+			service.getCharacteristic(Characteristic.CurrentPosition)
+				.on('get', this.getCallbackStateValue.bind(this, accessory.context))
+				.on('set', this.setCallbackStateValue.bind(this, accessory.context));
+			service.getCharacteristic(Characteristic.TargetPosition)
+				.on('get', this.getCallbackStateValue.bind(this, accessory.context))
+				.on('set', this.setCallbackStateValue.bind(this, accessory.context));
+			break;
+		case "TemperatureSensor":
+			service.getCharacteristic(Characteristic.CurrentTemperature)
+				.on('get', this.getCallbackStateValue.bind(this, accessory.context));
+			service.getCharacteristic(Characteristic.CurrentTemperature)
+				.setProps({minValue:context.min_value, maxValue:context.max_value});
+			break;
+		case "Speaker":
+			service.getCharacteristic(Characteristic.Mute)
+				.on('get', this.getCallbackStateValue.bind(this, accessory.context))
+				.on('set', this.setCallbackStateValue.bind(this, accessory.context));
+			break;
 	}
 
 	accessory.on('identify', this.identify.bind(this, accessory.context));
@@ -618,36 +534,42 @@ CluePlatform.prototype.getInitState = function (accessory)
 	accessory.getService(Service.AccessoryInformation)
 		.setCharacteristic(Characteristic.Manufacturer, accessory.context.manufacturer || "N/A")
 		.setCharacteristic(Characteristic.Model, accessory.context.model || "n/a")
-		.setCharacteristic(Characteristic.SerialNumber, accessory.context.serial || "000000000000");
+		.setCharacteristic(Characteristic.SerialNumber, accessory.context.serial || "000000000000")
+		.setCharacteristic(Characteristic.FirmwareRevision, pjson.version || "1.0.0");
 
-	// Retrieve initial state if polling is disabled
-	if (!accessory.context.polling)
+	var context = accessory.context;
+	var service = accessory.getService(Service[context.type]);
+
+	if (!context.polling)
 	{
-		switch (accessory.context.type)
+		switch (context.type)
 		{
 			case "Switch":
-				accessory.getService(Service[accessory.context.type]).getCharacteristic(Characteristic.On).getValue();
+				service.getCharacteristic(Characteristic.On).getValue();
 				break;
 			case "Outlet":
-				accessory.getService(Service[accessory.context.type]).getCharacteristic(Characteristic.On).getValue();
+				service.getCharacteristic(Characteristic.On).getValue();
 				break;
 			case "Lightbulb":
-				accessory.getService(Service[accessory.context.type]).getCharacteristic(Characteristic.On).getValue();
+				service.getCharacteristic(Characteristic.On).getValue();
 				break;
 			case "Door":
-				accessory.getService(Service[accessory.context.type]).getCharacteristic(Characteristic.LockCurrentState).getValue();
-				accessory.getService(Service[accessory.context.type]).getCharacteristic(Characteristic.LockTargetState).getValue();
+				service.getCharacteristic(Characteristic.CurrentDoorState).getValue();
+				service.getCharacteristic(Characteristic.TargetDoorState).getValue();
 				break;
 			case "LockMechanism":
-				accessory.getService(Service[accessory.context.type]).getCharacteristic(Characteristic.CurrentDoorState).getValue();
-				accessory.getService(Service[accessory.context.type]).getCharacteristic(Characteristic.TargetDoorState).getValue();
+				service.getCharacteristic(Characteristic.LockCurrentState).getValue();
+				service.getCharacteristic(Characteristic.LockTargetState).getValue();
 				break;
 			case "WindowCovering":
-				accessory.getService(Service[accessory.context.type]).getCharacteristic(Characteristic.CurrentPosition).getValue();
-				accessory.getService(Service[accessory.context.type]).getCharacteristic(Characteristic.TargetPosition).getValue();
+				service.getCharacteristic(Characteristic.CurrentPosition).getValue();
+				service.getCharacteristic(Characteristic.TargetPosition).getValue();
 				break;
 			case "TemperatureSensor":
-				accessory.getService(Service[accessory.context.type]).getCharacteristic(Characteristic.CurrentTemperature).getValue();
+				service.getCharacteristic(Characteristic.CurrentTemperature).getValue();
+				break;
+			case "Speaker":
+				service.getCharacteristic(Characteristic.Mute).getValue();
 				break;
 		}
 	}
@@ -656,55 +578,58 @@ CluePlatform.prototype.getInitState = function (accessory)
 	accessory.updateReachability(true);
 };
 
- CluePlatform.prototype.getSwitchEvaluation = function (data, error, stdout)
+CluePlatform.prototype.getSwitchEvaluation = function (context, error, stdout)
 {
 	var input = stdout != null ? stdout.toString().trim().toLowerCase() : null;
 	var output = null;
 
-	if (data.state_on)
-	{
-		var onarray = data.state_on.toLowerCase().split(",");
-		var index = onarray.indexOf(input);
-
-		if(index < 0)
-		{
-			if(data.state_off)
-			{
-				var offarray = data.state_off.toLowerCase().split(",");
-				index = offarray.indexOf(input);
-
-				if(index >= 0) output = false;
-					else output = data.state;
-			}
-			else output = false;
-		}
-		else output = true;
-	}
-	else if (data.state_eval)
-	{
-		output = eval(data.state_eval);
-	}
-	else if( error != null)
+	if( error != null)
 	{
 		output = !error;
 	}
 	else
 	{
-		output = input != null;
+		if (context.state_on)
+		{
+			var onarray = context.state_on.toLowerCase().split(",");
+			var index = onarray.indexOf(input);
+
+			if(index < 0)
+			{
+				if(context.state_off)
+				{
+					var offarray = context.state_off.toLowerCase().split(",");
+					index = offarray.indexOf(input);
+
+					if(index >= 0) output = false;
+						else output = context.state;
+				}
+				else output = false;
+			}
+			else output = true;
+		}
+		else if (context.state_eval)
+		{
+			output = eval(context.state_eval);
+		}
+		else
+		{
+			output = input != null;
+		}
 	}
 
 	return output;
 };
 
-CluePlatform.prototype.getSwitchExtendedEvaluation = function (data, error, stdout, onval, offval)
+CluePlatform.prototype.getSwitchExtendedEvaluation = function (context, error, stdout, onval, offval)
 {
-	var output = this.getSwitchEvaluation(data, error, stdout);
+	var output = this.getSwitchEvaluation(context, error, stdout);
 
 	if(output) return onval;
 		else return offval;
 };
 
-CluePlatform.prototype.getDataEvaluation = function (data, type, error, stdout)
+CluePlatform.prototype.getDataEvaluation = function (context, type, error, stdout)
 {
 	var input = stdout != null ? stdout.toString().trim().toLowerCase() : null;
 	var output = null;
@@ -713,9 +638,9 @@ CluePlatform.prototype.getDataEvaluation = function (data, type, error, stdout)
 	{
 		output = error;
 	}
-	else if (data.state_eval)
+	else if (context.state_eval)
 	{
-		output = eval(data.state_eval);
+		output = eval(context.state_eval);
 	}
 	else
 	{
@@ -731,266 +656,362 @@ CluePlatform.prototype.getDataEvaluation = function (data, type, error, stdout)
 /**
  * Runs synchronous an operating system command.
  *
- * @param data specific data related to a specific accessory
+ * @param context specific data related to a specific service accessory
  * @returns {string} the output of the execution
  */
-CluePlatform.prototype.getDirectState = function (data)
+CluePlatform.prototype.getDirectStateValue = function (context)
 {
 	var output = null;
 	var stdout = null;
+	var cmd = this.getStateCommand(context);
 
-	stdout = process.execSync(data.state_cmd).toString().trim();
-	this.log.debug('Getting the state, %s returned the following output of [%s] external command from Direct call: %s', data.name, data.state_cmd, stdout != null ? stdout.toString().trim() : null);
+	this.log.debug('[%s].[Get Direct State/Value] - Running command: %s', context.name, cmd);
+	stdout = process.execSync(cmd);
+	this.log.debug('[%s].[Get Direct State/Value] - Output value: %s', context.name, stdout != null ? stdout.toString().trim() : null);
 
-	switch (data.type)
+	switch (context.type)
 	{
 		case "Switch":
-			output = this.getSwitchEvaluation(data, null, stdout);
+			output = this.getSwitchEvaluation(context, null, stdout);
 			break;
 		case "Outlet":
-			output = this.getSwitchEvaluation(data, null, stdout);
+			output = this.getSwitchEvaluation(context, null, stdout);
 			break;
 		case "Lightbulb":
-			output = this.getSwitchEvaluation(data, null, stdout);
+			output = this.getSwitchEvaluation(context, null, stdout);
 			break;
 		case "Door":
-			output = this.getSwitchExtendedEvaluation(data, null, stdout, Characteristic.LockCurrentState.CLOSED, Characteristic.LockCurrentState.OPEN);
+			output = this.getSwitchExtendedEvaluation(context, null, stdout, Characteristic.LockCurrentState.CLOSED, Characteristic.LockCurrentState.OPEN);
 			break;
 		case "LockMechanism":
-			output = this.getSwitchExtendedEvaluation(data, null, stdout, Characteristic.LockCurrentState.SECURED, Characteristic.LockCurrentState.UNSECURED);
+			output = this.getSwitchExtendedEvaluation(context, null, stdout, Characteristic.LockCurrentState.SECURED, Characteristic.LockCurrentState.UNSECURED);
 			break;
 		case "WindowCovering":
-			output = this.getSwitchExtendedEvaluation(data, null, stdout, 100, 0);
+			output = this.getSwitchExtendedEvaluation(context, null, stdout, 100, 0);
 			break;
 		case "TemperatureSensor":
-			output = this.getDataEvaluation(data, "float", null, stdout);
+			output = this.getDataEvaluation(context, "float", null, stdout);
+			break;
+		case "Speaker":
+			output = this.getDataEvaluation(context, "int", null, stdout);
 			break;
 	}
 
-	this.log.debug('%s is running using state value from direct call: %s', data.name, output != null ? output.toString() : null);
+	this.log.debug('[%s].[Get Direct State/Value] - Computed state value: %s',context.name, output != null ? output.toString() : null);
 	return output;
 };
 
 /**
  * Method to determine current state.
  *
- * @param data specific data related to a specific accessory
- * @param callback callback method
+ * @param devcode code of the accessory
  */
-CluePlatform.prototype.getCallbackState = function (data, callback)
+CluePlatform.prototype.statePolling = function (devcode)
 {
-	this.log.debug('%s is preparing to get status, calling [%s] external command..', data.name, data.state_sync != null ? "synchronous" : "asynchronous");
+	var accessory = this.accessories[devcode];
 
-	if (data.state_sync)
-	{
-		// Execute command synchronous to get state valuer
-		var state = this.getDirectState(data);
-
-		callback(null, state);
-	}
-	else
-	{
+	if(accessory)
+	{	
+		// Clear polling
+		clearTimeout(this.polling[devcode]);
+		
 		var self = this;
+		var context = accessory.context;
+		var service = accessory.getService(Service[context.type]);
+		var command = this.getStateCommand(context);
+
+		this.log.debug('[%s].[State Polling] - Running command: %s', context.name, command);
 
 		// Execute command asynchronous to detect state
-		process.exec(data.state_cmd, function (error, stdout, stderr)
+		process.exec(command, function (error, stdout, stderr)
 		{
-			var output = null;
-			self.log.debug('Getting the state, %s returned the following output of [%s] external command from Callback call: %s', data.name, data.state_cmd, stdout != null ? stdout.toString().trim() : null);
+			var state = null;
+			self.log.debug('[%s].[State Polling] - Output value: %s', context.name, stdout != null ? stdout.toString().trim() : null);
 
-			switch (data.type)
+			switch (context.type)
 			{
 				case "Switch":
-					output = self.getSwitchEvaluation(data, error, stdout);
+					state = self.getSwitchEvaluation(context, error, stdout);
 					break;
 				case "Outlet":
-					output = self.getSwitchEvaluation(data, error, stdout);
+					state = self.getSwitchEvaluation(context, error, stdout);
 					break;
 				case "Lightbulb":
-					output = self.getSwitchEvaluation(data, error, stdout);
+					state = self.getSwitchEvaluation(context, error, stdout);
 					break;
 				case "Door":
-					output = self.getSwitchExtendedEvaluation(data, error, stdout, Characteristic.LockCurrentState.CLOSED, Characteristic.LockCurrentState.OPEN);
+					state = self.getSwitchExtendedEvaluation(context, error, stdout, Characteristic.LockCurrentState.CLOSED, Characteristic.LockCurrentState.OPEN);
 					break;
 				case "LockMechanism":
-					output = self.getSwitchExtendedEvaluation(data, error, stdout, Characteristic.LockCurrentState.SECURED, Characteristic.LockCurrentState.UNSECURED);
+					state = self.getSwitchExtendedEvaluation(context, error, stdout, Characteristic.LockCurrentState.SECURED, Characteristic.LockCurrentState.UNSECURED);
 					break;
 				case "WindowCovering":
-					output = self.getSwitchExtendedEvaluation(data, error, stdout, 100, 0);
+					state = self.getSwitchExtendedEvaluation(context, error, stdout, 100, 0);
 					break;
 				case "TemperatureSensor":
-					output = self.getDataEvaluation(data, "float", error, stdout);
+					state = self.getDataEvaluation(context, "float", error, stdout);
+					break;
+				case "Speaker":
+					state = self.getDataEvaluation(context, "int", error, stdout);
 					break;
 			}
 
-			// Error detection
-			if (stderr)
-			{
-				self.log.error("Failed to determine %s output/value; %s", data.name, stderr.toString());
-			}
+			// Error detection and handling
+			if (!error) self.log.debug('[%s].[State Polling] - Computed state value: %s', context.name, state != null ? state.toString() : null);
+				else self.log.error('[%s].[State Polling] - Error executing state read: %s', stderr != null ? stderr.toString() : error.toString());
 
-			self.log.debug('%s is running the callback using found state value: %s', data.name, output != null ? output.toString() : null);
-			callback(stderr, output);
+			if (!error && state !== context.state)
+			{
+				context.state = state;
+
+				if (service != null)
+				{
+					switch (context.type)
+					{
+						case "Switch":
+							service.getCharacteristic(Characteristic.On).getValue();
+							break;
+						case "Outlet":
+							service.getCharacteristic(Characteristic.On).getValue();
+							break;
+						case "Lightbulb":
+							service.getCharacteristic(Characteristic.On).getValue();
+							break;
+						case "Door":
+							service.getCharacteristic(Characteristic.CurrentDoorState).getValue();
+							break;
+						case "LockMechanism":
+							service.getCharacteristic(Characteristic.LockCurrentState).getValue();
+							break;
+						case "WindowCovering":
+							service.getCharacteristic(Characteristic.CurrentPosition).getValue();
+							break;
+						case "TemperatureSensor":
+							service.getCharacteristic(Characteristic.CurrentTemperature).getValue();
+							break;
+						case "Speaker":
+							service.getCharacteristic(Characteristic.Mute).getValue();
+							break;
+					}
+				}
+			}
 		});
+	
+		// Setup for next polling if the service still exist
+		this.polling[devcode] = setTimeout(this.statePolling.bind(this, devcode), context.interval * 1000);
 	}
 };
 
 /**
  * Method to determine current state.
  *
- * @param name name of the accessory
+ * @param context accessory service context
+ * @param callback callback function
  */
-CluePlatform.prototype.statePolling = function (name)
+CluePlatform.prototype.getCallbackStateValue = function (context, callback)
 {
-	var accessory = this.accessories[name];
-	var service = accessory.getService(Service[accessory.context.type]);
-	var data = accessory.context;
 	var self = this;
+	var cmd = this.getStateCommand(context);
 
-	// Clear polling
-	clearTimeout(this.polling[name]);
-
-	this.getCallbackState(data, function (error, state)
+	if (context.polling)
 	{
-		// Update state if there's no error
-		if (!error && state !== data.state)
-		{
-			data.state = state;
+		// Get state directly from cache if polling is enabled
+		this.log.debug("[%s].[Get Callback State/Value] - Pooling value: %s", context.name, this.getTextState(context.state));
 
-			if (service)
+		callback(null, context.state);
+	}
+	else
+	{
+		this.log.debug('[%s].[Get Callback State/Value] - Running command: %s', context.name, cmd);
+
+		// Execute command asynchronous to detect state
+		process.exec(cmd, function (error, stdout, stderr)
+		{
+			self.log.debug('[%s].[Get Callback State/Value] - Output value: %s', context.name, stdout != null ? stdout.toString().trim() : null);
+			var state = null;
+
+			switch (context.type)
 			{
-				switch (data.type)
+				case "Switch":
+					state = self.getSwitchEvaluation(context, error, stdout);
+					break;
+				case "Outlet":
+					state = self.getSwitchEvaluation(context, error, stdout);
+					break;
+				case "Lightbulb":
+					state = self.getSwitchEvaluation(context, error, stdout);
+					break;
+				case "Door":
+					state = self.getSwitchExtendedEvaluation(context, error, stdout, Characteristic.LockCurrentState.CLOSED, Characteristic.LockCurrentState.OPEN);
+					break;
+				case "LockMechanism":
+					state = self.getSwitchExtendedEvaluation(context, error, stdout, Characteristic.LockCurrentState.SECURED, Characteristic.LockCurrentState.UNSECURED);
+					break;
+				case "WindowCovering":
+					state = self.getSwitchExtendedEvaluation(context, error, stdout, 100, 0);
+					break;
+				case "TemperatureSensor":
+					state = self.getDataEvaluation(context, "float", error, stdout);
+					break;
+				case "Speaker":
+					state = self.getDataEvaluation(context, "int", error, stdout);
+					break;
+			}
+
+			// Error detection and handling
+			if (!error) self.log.debug('[%s].[Get Callback State/Value] - Computed state value: %s', context.name, state != null ? state.toString() : null);
+				else self.log.error('[%s].[Get Callback State/Value] - Error executing state read: %s', stderr != null ? stderr.toString() : error.toString());
+
+			callback(error, state);
+		});
+	}
+};
+
+CluePlatform.prototype.getStateCommand = function (context, state)
+{
+	var cmd = null;
+
+	if(state != null)
+	{
+		if(context.on_cmd && context.off_cmd) cmd = state ? context.on_cmd : context.off_cmd;
+			else if(context.on_cmd && !context.off_cmd) cmd = context.on_cmd;
+				else if(!context.on_cmd && context.off_cmd) cmd = context.off_cmd;
+	}
+	else cmd = context.state_cmd;
+
+	return cmd;
+};
+
+/**
+ * Method to set the state of the service.
+ *
+ * @param context accessory service context
+ * @param state accessory service new state
+ */
+CluePlatform.prototype.setDirectStateValue = function (context, state)
+{
+	var run = true;
+	var accessory = this.accessories[context.code];
+	var service = accessory.getService(Service[context.type]);
+	var command = this.getStateCommand(context, state);
+
+	this.log.debug('[%s].[Set Direct State/Value] - Running command: %s', context.name, command);
+
+	try
+	{
+		var stdout = process.execSync(command);
+		this.log.debug('[%s].[Set Direct State/Value] - Output value: %s', context.name, stdout != null ? stdout.toString().trim() : null);
+	}
+	catch(stderr)
+	{
+		this.log.error('[%s].[Set Direct State/Value] - Error executing state update: %s', context.name, stderr.toString());
+		run = false;
+	}
+
+	if(run)
+	{
+		context.state = state;
+		this.log.info('[%s].[Set Direct State/Value] - Computed state value: %s', context.name, this.getTextState(state));
+
+		if (service != null)
+		{
+			switch (context.type)
+			{
+				case "Switch":
+					service.getCharacteristic(Characteristic.On).updateValue(context.state);
+					break;
+				case "Outlet":
+					service.getCharacteristic(Characteristic.On).updateValue(context.state);
+					break;
+				case "Lightbulb":
+					service.getCharacteristic(Characteristic.On).updateValue(context.state);
+					break;
+				case "Door":
+					service.getCharacteristic(Characteristic.CurrentDoorState).updateValue(context.state);
+					break;
+				case "LockMechanism":
+					service.getCharacteristic(Characteristic.LockCurrentState).updateValue(context.state);
+					break;
+				case "WindowCovering":
+					service.getCharacteristic(Characteristic.CurrentPosition).updateValue(context.state);
+					break;
+				case "TemperatureSensor":
+					service.getCharacteristic(Characteristic.CurrentTemperature).updateValue(context.state);
+					break;
+				case "Speaker":
+					service.getCharacteristic(Characteristic.Mute).updateValue(context.state);
+					break;
+			}
+		}
+	}
+};
+
+/**
+ * Method to set the state of the service.
+ *
+ * @param context accessory service context
+ * @param state accessory service new state
+ * @param callback callback function
+ */
+CluePlatform.prototype.setCallbackStateValue = function (context, state, callback)
+{
+	var self = this;
+	var tout = null;
+	var cmd = this.getStateCommand(context, state);
+
+	//check dependencies for On event
+	if (state && context.dependency != null)
+	{
+		var relbyaccessory = this.accessories[context.dependency];
+		this.log.debug('[%s].[Set Callback State/Value] - Found dependency accessory; [%s]', context.name, relbyaccessory.context.name);
+		var relbystate = this.getDirectStateValue(relbyaccessory.context);
+		this.log.debug('[%s].[Set Callback State/Value]->[%s] - Computed state value: %s', context.name, relbyaccessory.context.name, this.getTextState(relbystate));
+
+		if (relbystate != state)
+		{
+			this.setDirectStateValue(relbyaccessory.context, state);
+			this.log.debug('[%s].[Set Callback State/Value]->[%s] - Updated state value: %s', context.name, relbyaccessory.context.name, this.getTextState(state));
+		}
+	}
+	else if (!state) //check dependencies for Off event
+	{
+		// Check if all registered accessories depends by the current one
+		for (var index in this.accessories)
+		{
+			var reltoaccessory = this.accessories[index];
+
+			if (context.code != reltoaccessory.context.code && reltoaccessory.context.dependency == context.code)
+			{
+				this.log.debug('[%s].[Set Callback State/Value] - Found dependent accessory; [%s]', context.name, reltoaccessory.context.name);
+				var reltostate = this.getDirectStateValue(reltoaccessory.context);
+				this.log.debug('[%s].[Set Callback State/Value]->[%s] - Computed state value: %s', context.name, reltoaccessory.context.name, this.getTextState(reltostate));
+
+				if (reltostate != state)
 				{
-					case "Switch":
-						service.getCharacteristic(Characteristic.On).getValue();
-						break;
-					case "Outlet":
-						service.getCharacteristic(Characteristic.On).getValue();
-						break;
-					case "Lightbulb":
-						service.getCharacteristic(Characteristic.On).getValue();
-						break;
-					case "Door":
-						service.getCharacteristic(Characteristic.LockCurrentState).getValue();
-						service.getCharacteristic(Characteristic.LockTargetState).getValue();
-						break;
-					case "LockMechanism":
-						service.getCharacteristic(Characteristic.CurrentDoorState).getValue();
-						service.getCharacteristic(Characteristic.TargetDoorState).getValue();
-						break;
-					case "WindowCovering":
-						service.getCharacteristic(Characteristic.CurrentPosition).getValue();
-						service.getCharacteristic(Characteristic.TargetPosition).getValue();
-						break;
-					case "TemperatureSensor":
-						service.getCharacteristic(Characteristic.CurrentTemperature).getValue();
-						break;
+					this.setDirectStateValue(reltoaccessory.context, state);
+					this.log.debug('[%s].[Set Callback State/Value]->[%s] - Updated state value: %s', context.name, reltoaccessory.context.name, this.getTextState(state));
 				}
 			}
 		}
-	});
-
-	// Setup for next polling if the service still exist
-	if(service)
-	{
-		this.polling[name] = setTimeout(this.statePolling.bind(this, name), data.interval * 1000);
 	}
-};
 
-/**
- * Method to determine current value.
- *
- * @param data
- * @param callback
- */
-CluePlatform.prototype.getControlValue = function (data, callback)
-{
-	var self = this;
-
-	if (data.polling)
-	{
-		// Get state directly from cache if polling is enabled
-		this.log.debug("%s has currently the value %s", data.name, data.state);
-
-		callback(null, data.state);
-	}
-	else
-	{
-		// Check state if polling is disabled
-		this.getCallbackState(data, function (error, state)
-		{
-			// Update state if command exists
-			if (data.state_cmd) data.state = state;
-			if (!error) self.log("%s has value %s", data.name, data.state);
-
-			callback(error, data.state);
-		});
-	}
-};
-
-/**
- * Method to determine current state.
- *
- * @param data
- * @param callback
- */
-CluePlatform.prototype.getControlState = function (data, callback)
-{
-	var self = this;
-
-	if (data.polling)
-	{
-		// Get state directly from cache if polling is enabled
-		this.log.debug("%s is currently %s", data.name, this.getTextState(data.state));
-
-		callback(null, data.state);
-	}
-	else
-	{
-		// Check state if polling is disabled
-		this.getCallbackState(data, function (error, state)
-		{
-			// Update state if command exists
-			if (data.state_cmd) data.state = state;
-			if (!error) self.log.info("%s is turned %s", data.name, self.getTextState(data.state));
-
-			callback(error, data.state);
-		});
-	}
-};
-
-/**
- * Method to set state.
- *
- * @param data
- * @param state
- * @param callback
- */
-CluePlatform.prototype.setCallbackState = function (data, state, callback)
-{
-	var cmd = null;
-	var tout = null;
-	var self = this;
-
-	if(data.on_cmd && data.off_cmd) cmd = state ? data.on_cmd : data.off_cmd;
-		else if(data.on_cmd && !data.off_cmd) cmd = data.on_cmd;
-			else if(!data.on_cmd && data.off_cmd) cmd = data.off_cmd;
+	this.log.debug('[%s].[Set Callback State/Value] - Running command: %s', context.name, cmd);
 
 	// Execute command to set state
 	process.exec(cmd, function (error, stdout, stderr)
 	{
-		self.log.debug('Setting the state, %s returned the following output of [%s] external command from Callback call: %s', data.name, cmd, stdout != null ? stdout.toString().trim() : null);
+		self.log.debug('[%s].[Set Callback State/Value] - Output value: %s', context.name, stdout != null ? stdout.toString().trim() : null);
 
 		// Error detection
-		if (error && (state !== data.state))
+		if (error && (state !== context.state))
 		{
-			self.log.error("%s is not turning %s due to the following error: %s", data.name, self.getTextState(state), stderr.toString());
+			self.log.error('[%s].[Set Callback State/Value] - Error executing state update: %s', context.name, stderr.toString());
 		}
 		else
 		{
-			if (cmd) self.log.info("%s is turning %s", data.name, self.getTextState(state));
+			self.log.info('[%s].[Set Callback State/Value] - Computed state value: %s', context.name, self.getTextState(state));
 
-			data.state = state;
+			context.state = state;
 			error = null;
 		}
 
@@ -1000,27 +1021,69 @@ CluePlatform.prototype.setCallbackState = function (data, state, callback)
 			callback(error);
 		}
 
-		//correlation between current service accessory and child services
-		self.correlate(data.name, state);
+		// run state workflow (commands) when teh state become On
+		if(context.state)
+		{
+			setTimeout(function()
+			{
+				if(context.state_flow != null)
+				{
+					for (var index1 in context.state_flow)
+					{
+						try
+						{
+							self.runCmd(context.state_flow[index1]);
+						}
+						catch(err)
+						{
+							self.log.error("Error running operation command for [%s] accessory service: %s", context.name, err.message);
+						}
+					}
+				}
 
-		// check workflow that have to be executed
-		self.execWorkflow(data.name);
+				// Check if all registered accessories depends by the current one
+				for (var index2 in self.accessories)
+				{
+					var reltoaccessory = self.accessories[index2];
+
+					if (context.code != reltoaccessory.context.code && reltoaccessory.context.dependency == context.code)
+					{
+						self.log.debug('[%s].[Set Callback State/Value] - Found dependent accessory; [%s]', context.name, reltoaccessory.context.name);
+						var reltostate = self.getDirectStateValue(reltoaccessory.context);
+						self.log.debug('[%s].[Set Callback State/Value]->[%s] - Found vs Computed state value: %s vs. %s', context.name, reltoaccessory.context.name, self.getTextState(reltoaccessory.context.state), self.getTextState(reltostate));
+
+						if (reltostate != reltoaccessory.context.state)
+						{
+							self.setDirectStateValue(reltoaccessory.context, reltostate);
+							self.log.debug('[%s].[Set Callback State/Value]->[%s] - Updated state value: %s', context.name, reltoaccessory.context.name, self.getTextState(reltostate));
+						}
+					}
+				}
+
+			}, 1500);
+		}
 	});
 
 	// Allow 1s to set state but otherwise assumes success
 	tout = setTimeout(function ()
 	{
 		tout = null;
-		self.log.warn("%s waited too long time for turning %, assuming success", data.name, self.getTextState(state));
+		self.log.warn("[%s].[Set Callback State/Value].[Timeout] - Waited too long time for turning %s, assuming success..",  context.name, self.getTextState(state));
 
 		callback();
 	}, 5000);
 };
 
-// Method to handle identify request
-CluePlatform.prototype.identify = function (thisSwitch, paired, callback)
+/**
+ * Method to handle identify request.
+ *
+ * @param context accessory service context
+ * @param paired paired device code
+ * @param callback callback function
+ */
+CluePlatform.prototype.identify = function (context, paired, callback)
 {
-	this.log.info(thisSwitch.name + " identify requested!");
+	this.log.info("[%s] identify requested!", context.name);
 	callback();
 };
 
@@ -1176,7 +1239,7 @@ CluePlatform.prototype.configurationRequestHandler = function (context, request,
 								"placeholder": context.operation ? "Leave blank if unchanged" : "/opt/clue/setup -g service -b mcpi"
 							},
 							{
-								"id": "workflow",
+								"id": "state_flow",
 								"title": "CMDs to Run when ON State",
 								"placeholder": context.operation ? "Leave blank if unchanged" : "sleep 5"
 							},
@@ -1201,8 +1264,8 @@ CluePlatform.prototype.configurationRequestHandler = function (context, request,
 								"placeholder": context.operation ? "Leave blank if unchanged" : "100"
 							},
 							{
-								"id": "link",
-								"title": "Linked Accessory",
+								"id": "dependency",
+								"title": "Depends by Accessory",
 								"placeholder": context.operation ? "Leave blank if unchanged" : "N/A"
 							},
 							{
@@ -1266,8 +1329,8 @@ CluePlatform.prototype.configurationRequestHandler = function (context, request,
 				newDevice.interval = userInputs.interval || newDevice.interval;
 				newDevice.min_value = userInputs.min_value || newDevice.min_value;
 				newDevice.max_value = userInputs.max_value || newDevice.max_value;
-				newDevice.link = userInputs.link || newDevice.link;
-				newDevice.workflow = userInputs.workflow || newDevice.workflow;
+				newDevice.dependency = userInputs.dependency || newDevice.dependency;
+				newDevice.state_flow = userInputs.state_flow || newDevice.state_flow;
 				newDevice.manufacturer = userInputs.manufacturer;
 				newDevice.model = userInputs.model;
 				newDevice.serial = userInputs.serial;
@@ -1326,8 +1389,8 @@ CluePlatform.prototype.configurationRequestHandler = function (context, request,
 						'interval': accessory.context.interval,
 						'min_value': accessory.context.min_value,
 						'max_value': accessory.context.max_value,
-						'link': accessory.context.link,
-						'workflow': accessory.context.workflow,
+						'dependency': accessory.context.dependency,
+						'state_flow': accessory.context.state_flow,
 						'manufacturer': accessory.context.manufacturer,
 						'model': accessory.context.model,
 						'serial': accessory.context.serial,

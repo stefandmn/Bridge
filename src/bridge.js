@@ -29,8 +29,8 @@ Bridge.prototype.run = function ()
 		.option('-c, --config', 'Create configuration file')
 		.option('-d, --display', 'Display Clue Bridge PIN for iOS registration')
 		.option('-s, --start', 'Start HomeBride server')
-		.option('-k, --stop', 'Shutdown/kill process of Clue Bridge server')
-		.option('-D, --debug', 'Rune Clue Bridge server in debug mode')
+		.option('-k, --stop', 'Shutdown/kill process of Bridge service')
+		.option('-D, --debug', 'Run HomeBride server in debug mode')
 		.parse(process.argv);
 
 	var self = this;
