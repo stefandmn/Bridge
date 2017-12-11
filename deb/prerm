@@ -2,7 +2,9 @@
 
 if [ "$1" == "remove" ]; then
 	# Remove service
-	service clue-bridge stop >/dev/null 2>&1
+	if [ $(ps -ef | grep "bridge" | grep -v "grep" | wc -l) -eq 0 ]; then
+		service clue-bridge stop >/dev/null 2>&1
+	fi
 	/usr/sbin/update-rc.d -f clue-bridge remove >/dev/null 2>&1
 	/bin/systemctl daemon-reload >/dev/null 2>&1
 fi
