@@ -1,5 +1,11 @@
 #!/bin/bash
 
 if [ "$1" == "remove" ] || [ "$1" == "purge" ]; then
-	true
+	# Remove system resources
+	rm -rf /usr/lib/node_modules/homebridge-clue
+
+	# Remove profile resources
+	if [ "$1" == "purge" ]; then
+		rm -rf /root/.homebridge
+	fi
 fi

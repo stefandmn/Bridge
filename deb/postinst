@@ -9,11 +9,11 @@ if [ "$1" == "configure" ]; then
 	# Set scripts permissions and Register service
 	chmod +x /opt/clue/bin/bridge
 	chmod +x /etc/init.d/clue-bridge
-	/usr/sbin/update-rc.d clue-bridge defaults
-	/bin/systemctl daemon-reload
+	/usr/sbin/update-rc.d clue-bridge defaults >/dev/null 2>&1
+	/bin/systemctl daemon-reload >/dev/null 2>&1
 
 	# Restart the service (if is the case)
 	if [ $(ps -ef | grep "bridge" | grep -v "grep" | grep -v "apt" | wc -l) -ne 0 ]; then
-		service clue-bridge restart
+		service clue-bridge restart >/dev/null 2>&1
 	fi
 fi
