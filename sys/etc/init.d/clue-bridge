@@ -40,17 +40,25 @@ config ()
 
 case "$1" in
 	start)
-		config
 		log_daemon_msg "Starting $DESC" "$NAME"
-		start-stop-daemon --start --background --pidfile $PID_FILE --chuid root --make-pidfile \
-			--exec /bin/bash -- -c "exec $DAEMON $OPTIONS > $LOG_FILE 2>&1"
-		log_end_msg $?
+		if [ $(ps -ef | grep "setup --init" | grep -v "grep") -eq 0 ]; then
+			config
+			start-stop-daemon --start --background --pidfile $PID_FILE --chuid root --make-pidfile \
+				--exec /bin/bash -- -c "exec $DAEMON $OPTIONS > $LOG_FILE 2>&1"
+			log_end_msg $?
+		else
+			log_end_msg 1
+		fi
 		;;
 	stop)
 		log_daemon_msg "Stopping $DESC" "$NAME"
-		start-stop-daemon --stop --pidfile $PID_FILE --startas $DAEMON -- $OPTIONS
-		log_end_msg $?
-		rm -f $PID_FILE
+		if [ $(ps -ef | grep "setup --init" | grep -v "grep") -eq 0 ]; then
+			start-stop-daemon --stop --pidfile $PID_FILE --startas $DAEMON -- $OPTIONS
+			log_end_msg $?
+			rm -f $PID_FILE
+		else
+			log_end_msg 1
+		fi
 		;;
 	restart)
 		$0 stop && sleep 2 && $0 start
