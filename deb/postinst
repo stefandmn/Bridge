@@ -13,7 +13,7 @@ if [ "$1" == "configure" ]; then
 	/bin/systemctl daemon-reload >/dev/null 2>&1
 
 	# Restart the service (if is the case)
-	if [ $(ps -ef | grep "bridge" | grep -v "grep" | grep -v "apt" | wc -l) -ne 0 ]; then
+	if [ $(ps -ef | grep "bridge" | grep -v "grep" | grep -v "apt" | grep -v "dpkg" | wc -l) -ne 0 ]; then
 		service clue-bridge restart >/dev/null 2>&1
 	fi
 fi
