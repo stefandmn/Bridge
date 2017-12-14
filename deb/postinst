@@ -2,8 +2,8 @@
 
 if [ "$1" == "configure" ]; then
 	# Link Clue Bridge packages by HomeBridge module
-	if [ ! -h /usr/lib/node_modules/homebridge-clue ]; then
-		ln -fs /opt/clue/share/bridge /usr/lib/node_modules/homebridge-clue
+	if [ ! -h /opt/node/lib/node_modules/homebridge-clue ] && [ ! -f /opt/node/lib/node_modules/homebridge-clue ]; then
+		ln -fs /opt/clue/share/bridge /opt/node/lib/node_modules/homebridge-clue
 	fi
 
 	# Set scripts permissions and Register service

@@ -34,14 +34,14 @@ config ()
 	fi
 
 	if [ ! -h /usr/lib/node_modules/homebridge-clue ]; then
-		ln -fs /opt/clue/share/bridge /usr/lib/node_modules/homebridge-clue
+		ln -fs /opt/clue/share/bridge /opt/node/lib/node_modules/homebridge-clue
 	fi
 }
 
 case "$1" in
 	start)
 		log_daemon_msg "Starting $DESC" "$NAME"
-		if [ $(ps -ef | grep "setup --init" | grep -v "grep") -eq 0 ]; then
+		if [[ $(ps -ef | grep "setup --init" | grep -v "grep") -eq 0 ]]; then
 			config
 			start-stop-daemon --start --background --pidfile $PID_FILE --chuid root --make-pidfile \
 				--exec /bin/bash -- -c "exec $DAEMON $OPTIONS > $LOG_FILE 2>&1"
@@ -52,7 +52,7 @@ case "$1" in
 		;;
 	stop)
 		log_daemon_msg "Stopping $DESC" "$NAME"
-		if [ $(ps -ef | grep "setup --init" | grep -v "grep") -eq 0 ]; then
+		if [[ $(ps -ef | grep "setup --init" | grep -v "grep") -eq 0 ]]; then
 			start-stop-daemon --stop --pidfile $PID_FILE --startas $DAEMON -- $OPTIONS
 			log_end_msg $?
 			rm -f $PID_FILE

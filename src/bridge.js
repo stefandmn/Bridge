@@ -5,8 +5,8 @@
 var fs = require('fs');
 var path = require('path');
 var proc = require("child_process");
-var chalk = require('/usr/lib/node_modules/homebridge/node_modules/chalk');
-var program = require('/usr/lib/node_modules/homebridge/node_modules/commander');
+var chalk = require('/opt/node/lib/node_modules/homebridge/node_modules/chalk');
+var program = require('/opt/node/lib/node_modules/homebridge/node_modules/commander');
 
 
 module.exports = function()
@@ -18,7 +18,7 @@ function Bridge()
 {
 	this.jsoncfg = '/opt/clue/etc/bridge.json';
 	this.jsonpkg = '/opt/clue/share/bridge/package.json';
-	this.libpath = '/usr/lib/node_modules/homebridge/lib';
+	this.libpath = '/opt/node/lib/node_modules/homebridge/lib';
 	this.homebridge = null;
 }
 
