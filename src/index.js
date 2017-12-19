@@ -134,7 +134,7 @@ CluePlatform.prototype.loadCecConfig = function ()
 			var code2 = type.trim().replace(/\s/g, '').toLowerCase();
 			var code = code1 + "_" + code2;
 
-			if(code1 != "clue" && version != "unknown" && version > "1.3" && this.getDeviceConfig(code) == null)
+			if(code1 != "clue" && code1 != "raspberry" && version != "unknown" && version > "1.3" && this.getDeviceConfig(code) == null)
 			{
 				if(code2.indexOf("audio") < 0)
 				{
