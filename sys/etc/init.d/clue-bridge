@@ -41,24 +41,21 @@ config ()
 case "$1" in
 	start)
 		log_daemon_msg "Starting $DESC" "$NAME"
-		if [[ $(ps -ef | grep "setup --init" | grep -v "grep") -eq 0 ]]; then
+		if [[ $(ps -ef | grep "init splash setup" | grep -v "grep" | wc -l) -eq 0 ]]; then
 			config
 			start-stop-daemon --start --background --pidfile $PID_FILE --chuid root --make-pidfile \
 				--exec /bin/bash -- -c "exec $DAEMON $OPTIONS > $LOG_FILE 2>&1"
 			log_end_msg $?
 		else
+			log_progress_msg "Service won't start because the system is still in [setup] mode"
 			log_end_msg 1
 		fi
 		;;
 	stop)
 		log_daemon_msg "Stopping $DESC" "$NAME"
-		if [[ $(ps -ef | grep "setup --init" | grep -v "grep") -eq 0 ]]; then
-			start-stop-daemon --stop --pidfile $PID_FILE --startas $DAEMON -- $OPTIONS
-			log_end_msg $?
-			rm -f $PID_FILE
-		else
-			log_end_msg 1
-		fi
+		start-stop-daemon --stop --pidfile $PID_FILE --startas $DAEMON -- $OPTIONS
+		log_end_msg $?
+		rm -f $PID_FILE
 		;;
 	restart)
 		$0 stop && sleep 2 && $0 start
