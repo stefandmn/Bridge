@@ -41,7 +41,7 @@ config ()
 case "$1" in
 	start)
 		log_daemon_msg "Starting $DESC" "$NAME"
-		if [[ $(ps -ef | grep "init splash setup" | grep -v "grep" | wc -l) -eq 0 ]]; then
+		if [ $(ps -ef | grep "init splash setup" | grep -v "grep" | wc -l) -eq 0 ]; then
 			config
 			start-stop-daemon --start --background --pidfile $PID_FILE --chuid root --make-pidfile \
 				--exec /bin/bash -- -c "exec $DAEMON $OPTIONS > $LOG_FILE 2>&1"
