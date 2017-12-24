@@ -24,13 +24,14 @@ test -x $DAEMON || exit 10
 
 . /lib/lsb/init-functions
 
-config ()
+config()
 {
 	if [ ! -d /root/.homebridge ] || [ ! -h /root/.homebridge/config.json ]; then
-		mkdir -p /opt/clue/etc
-		mkdir -p /root/.homebridge
-		/opt/clue/bin/bridge --config
-		ln -fs /opt/clue/etc/bridge.json /root/.homebridge/config.json
+		if [ -f /opt/clue/etc/bridge.json ]; then
+			mkdir -p /root/.homebridge
+			/opt/clue/bin/bridge --config
+			ln -fs /opt/clue/etc/bridge.json /root/.homebridge/config.json
+		fi
 	fi
 
 	if [ ! -h /usr/lib/node_modules/homebridge-clue ]; then
