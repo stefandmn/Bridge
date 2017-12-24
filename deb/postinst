@@ -3,6 +3,7 @@
 if [ "$1" == "configure" ]; then
 	# Link Clue Bridge packages by HomeBridge module
 	if [ ! -h /opt/node/lib/node_modules/homebridge-clue ] && [ ! -f /opt/node/lib/node_modules/homebridge-clue ]; then
+		if [ ! -d /opt/node/lib/node_modules ]; then mkdir -p /opt/node/lib/node_modules ; fi
 		ln -fs /opt/clue/share/bridge /opt/node/lib/node_modules/homebridge-clue
 	fi
 
