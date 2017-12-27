@@ -27,14 +27,21 @@ test -x $DAEMON || exit 10
 config()
 {
 	if [ ! -d /root/.homebridge ] || [ ! -h /root/.homebridge/config.json ]; then
-		if [ -f /opt/clue/etc/bridge.json ]; then
+		if [ ! -d /root/.homebridge ]; then
 			mkdir -p /root/.homebridge
+		fi
+		if [ ! -f /opt/clue/etc/bridge.json ]; then
 			/opt/clue/bin/bridge --config
+		fi
+		if [ ! -h /root/.homebridge/config.json ]; then
 			ln -fs /opt/clue/etc/bridge.json /root/.homebridge/config.json
 		fi
 	fi
 
-	if [ ! -h /usr/lib/node_modules/homebridge-clue ]; then
+	if [ ! -h /opt/node/lib/node_modules/homebridge-clue ]; then
+		if [ ! -d /opt/node/lib/node_modules ]; then
+			mkdir -p /opt/node/lib/node_modules
+		fi
 		ln -fs /opt/clue/share/bridge /opt/node/lib/node_modules/homebridge-clue
 	fi
 }
