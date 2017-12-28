@@ -68,7 +68,7 @@ case "$1" in
 
 			log_end_msg $?
 
-			if [ "$splash" = "y" ] && [ "$(/sbin/runlevel | cut -d " " -f 2)" = "unknown" -o "$(/sbin/runlevel | cut -d " " -f 2)" = "" ]; then
+			if [ "$splash" = "y" ] && [ "$(/sbin/runlevel | cut -d " " -f 2)" != "unknown" ] && [ "$(/sbin/runlevel | cut -d " " -f 2)" != "" ]; then
 				$SETUP --splash --info
 			fi
 		else
@@ -79,8 +79,13 @@ case "$1" in
 	stop)
 		log_daemon_msg "Stopping $DESC" "$NAME"
 		start-stop-daemon --stop --pidfile $PID_FILE --startas $DAEMON -- $OPTIONS
+
 		log_end_msg $?
 		rm -f $PID_FILE
+
+		if [ "$splash" = "y" ] && [ "$(/sbin/runlevel | cut -d " " -f 2)" != "unknown" ] && [ "$(/sbin/runlevel | cut -d " " -f 2)" != "" ]; then
+			$SETUP --splash --info
+		fi
 		;;
 	restart)
 		$0 stop && sleep 2 && $0 start
