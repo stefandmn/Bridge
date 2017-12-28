@@ -1,6 +1,6 @@
 {
 	"name": "homebridge-clue",
-	"version": "1.2.11",
+	"version": "1.2.12",
 	"description": "Clue plugin for HomeBridge (API 2.0) to publish through HomeKit Clue Media Experience accessories",
 	"main": "index.js",
 	"engines":
