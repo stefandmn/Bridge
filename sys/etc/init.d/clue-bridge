@@ -68,7 +68,7 @@ case "$1" in
 
 			log_end_msg $?
 
-			if [ "$splash" = "y" ] && [ "$(/sbin/runlevel | cut -d " " -f 2)" != "unknown" ] && [ "$(/sbin/runlevel | cut -d " " -f 2)" != "" ]; then
+			if [ "$splash" = "y" ] && [ "$(/sbin/runlevel | cut -d " " -f 2)" != "unknown" ] && [ "$(/sbin/runlevel | cut -d " " -f 2)" != "" ] && [ $(ps -ef | grep "/opt/clue/bin/clue" | grep -v "grep" | wc -l) -eq 0 ] && [ $(ps -ef | grep "/opt/clue/bin/setup" | grep -v "grep" | wc -l) -eq 0 ]; then
 				$SETUP --splash --info
 			fi
 		else
