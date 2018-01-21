@@ -17,12 +17,10 @@ PID_FILE=/var/run/$NAME.pid
 LOG_FILE=/var/log/$NAME.log
 DAEMON=/usr/bin/node
 OPTIONS="/opt/clue/share/bridge/bridge.js --$1 -D"
-SETUP="/opt/clue/bin/setup"
 
 ############### END EDIT ME ##################
 
 test -x $DAEMON || exit 10
-test -x $SETUP || exit 0
 
 . /lib/lsb/init-functions
 
@@ -55,7 +53,6 @@ case "$1" in
 			config
 			start-stop-daemon --start --background --pidfile $PID_FILE --chuid root --make-pidfile \
 				--exec /bin/bash -- -c "exec $DAEMON $OPTIONS > $LOG_FILE 2>&1"
-
 			log_end_msg $?
 		else
 			log_progress_msg "Service won't start because the system is still in [setup] mode"
