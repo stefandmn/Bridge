@@ -48,17 +48,6 @@ config()
 	fi
 }
 
-infosvc()
-{
-	local runlevel=$(/sbin/runlevel | cut -d' ' -f2)
-	local runevent=$(ps -ef | grep "dpkg" | grep -v "grep" | wc -l)
-	local runguide=$($SETUP -g service -s splash)
-
-	if [ $(more /proc/cmdline | grep splash | wc -l) -gt 0 ] && [ "${runlevel}" = "5" ] && [ ${runevent} -eq 0 ] && [ "${runguide}" = "active" ]; then
-		$SETUP --splash --info -s $NAME $1
-	fi
-}
-
 case "$1" in
 	start)
 		log_daemon_msg "Starting $DESC" "$NAME"
@@ -68,7 +57,6 @@ case "$1" in
 				--exec /bin/bash -- -c "exec $DAEMON $OPTIONS > $LOG_FILE 2>&1"
 
 			log_end_msg $?
-			infosvc "start"
 		else
 			log_progress_msg "Service won't start because the system is still in [setup] mode"
 			log_end_msg 1
@@ -80,7 +68,6 @@ case "$1" in
 
 		log_end_msg $?
 		rm -f $PID_FILE
-		infosvc "stop"
 		;;
 	restart)
 		$0 stop && sleep 2 && $0 start
